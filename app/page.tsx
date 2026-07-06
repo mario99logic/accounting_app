@@ -10,15 +10,18 @@ type Task = {
   status: string;
 };
 type ClientResult = {
-  client: { name: string; companyId: string; status: string };
+  client: { id: string; name: string; companyId: string; status: string };
   openTasks: Task[];
 };
+type ConfirmState = "idle" | "loading" | "done" | "error";
 
 export default function Home() {
   const [hp, setHp] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<ClientResult | null>(null);
+  const [confirmState, setConfirmState] = useState<ConfirmState>("idle");
+  const [confirmError, setConfirmError] = useState("");
 
   async function lookup() {
     const value = hp.trim();
@@ -29,6 +32,8 @@ export default function Home() {
     setLoading(true);
     setError("");
     setResult(null);
+    setConfirmState("idle");
+    setConfirmError("");
     try {
       const res = await fetch(`/api/client?hp=${encodeURIComponent(value)}`);
       const data = await res.json();
@@ -46,6 +51,32 @@ export default function Home() {
 
   function onKey(e: React.KeyboardEvent) {
     if (e.key === "Enter") lookup();
+  }
+
+  async function confirmDocs() {
+    if (!result) return;
+    setConfirmState("loading");
+    setConfirmError("");
+    try {
+      const res = await fetch("/api/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId: result.client.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setConfirmError(data.message ?? "אירעה שגיאה בעדכון הסטטוס.");
+        setConfirmState("error");
+      } else {
+        setResult((prev) =>
+          prev ? { ...prev, client: { ...prev.client, status: data.status } } : prev
+        );
+        setConfirmState("done");
+      }
+    } catch {
+      setConfirmError("אירעה שגיאה בחיבור לשרת.");
+      setConfirmState("error");
+    }
   }
 
   return (
@@ -82,6 +113,23 @@ export default function Home() {
             <div className="name">{result.client.name}</div>
             <div className="hp">ח.פ / ע.מ: {result.client.companyId}</div>
             <span className="status-pill">{result.client.status}</span>
+
+            <div className="confirm-area">
+              {confirmState === "done" ? (
+                <div className="confirm-success">✓ עודכן — התקבלו מסמכים</div>
+              ) : (
+                <button
+                  className="btn-confirm"
+                  onClick={confirmDocs}
+                  disabled={confirmState === "loading"}
+                >
+                  {confirmState === "loading" ? "מעדכן…" : "אישרתי קבלת מסמכים"}
+                </button>
+              )}
+              {confirmState === "error" && (
+                <div className="msg error confirm-error">{confirmError}</div>
+              )}
+            </div>
           </section>
 
           <div className="section-label">משימות פתוחות</div>

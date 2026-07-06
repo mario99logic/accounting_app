@@ -140,6 +140,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       client: {
+        id: item.id,
         name: item.name,
         companyId: hp,
         status: intakeStatus || "—",
